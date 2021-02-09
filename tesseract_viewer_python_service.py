@@ -5,11 +5,9 @@ from tesseract.tesseract_common import FilesystemPath, Isometry3d, Translation3d
     ManipulatorInfo
 from tesseract.tesseract_environment import Environment
 from tesseract.tesseract_scene_graph import SimpleResourceLocator, SimpleResourceLocatorFn
-"""from tesseract.tesseract_command_language import CartesianWaypoint, Waypoint, \
-    PlanInstructionType_FREESPACE, PlanInstructionType_START, PlanInstruction, Instruction, \
-    CompositeInstruction, flatten
-from tesseract.tesseract_process_managers import ProcessPlanningServer, ProcessPlanningRequest, \
-    FREESPACE_PLANNER_NAME"""
+from tesseract.tesseract_command_language import StateWaypoint, Waypoint, MoveInstruction, \
+    Instruction, CompositeInstruction, MoveInstructionType_FREESPACE
+
 import os
 import re
 import traceback
@@ -34,7 +32,7 @@ _robdef = """
               property string{list} joint_names [readonly]
 
               function void update_joint_positions(string{list} joint_names, double[] joint_positions)
-              function void play_trajectory(JointTrajectory trajectory)
+              function void update_trajectory(JointTrajectory trajectory)
 
           end
 
@@ -104,7 +102,23 @@ class TesseractViewerService:
 
             self._viewer.update_joint_positions(joint_names, joint_positions)
 
-    
+    def update_trajectory(self, trajectory):
+        #TODO: more error checking
+        joint_names = trajectory.joint_names
+        for j in joint_names:
+                assert j in self.joint_names, f"Invalid joint name: {j}"
+
+        traj2 = CompositeInstruction("DEFAULT")
+        for wp in trajectory.waypoints:
+            assert len(wp.joint_position) == len(joint_names), "Invalid joint position vector len"
+            wp2 = StateWaypoint(joint_names, wp.joint_position)
+            wp2.time = wp.time_from_start
+            move_instr = MoveInstruction(Waypoint(wp2), MoveInstructionType_FREESPACE)
+            traj2.append(Instruction(move_instr))
+
+        self._viewer.update_trajectory(traj2)
+
+
 
     
 
